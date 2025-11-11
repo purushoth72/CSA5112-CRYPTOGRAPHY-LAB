@@ -1,0 +1,45 @@
+import string
+import random
+
+def generate_key():
+    """Generate a random monoalphabetic substitution key."""
+    letters = list(string.ascii_uppercase)
+    shuffled = letters.copy()
+    random.shuffle(shuffled)
+    return dict(zip(letters, shuffled))
+
+def encrypt(plaintext, key):
+    """Encrypt plaintext using a given monoalphabetic key."""
+    ciphertext = ""
+    for char in plaintext.upper():
+        if char in key:
+            ciphertext += key[char]
+        else:
+            ciphertext += char  
+
+def decrypt(ciphertext, key):
+    """Decrypt ciphertext using the given monoalphabetic key."""
+    reverse_key = {v: k for k, v in key.items()}
+    plaintext = ""
+    for char in ciphertext:
+        if char in reverse_key:
+            plaintext += reverse_key[char]
+        else:
+            plaintext += char
+    return plaintext
+
+
+if __name__ == "__main__":
+    # Generate a random key mapping
+    key = generate_key()
+
+    print("Generated substitution key:")
+    for k, v in key.items():
+        print(f"{k} -> {v}")
+    
+    plaintext = input("\nEnter plaintext: ")
+    ciphertext = encrypt(plaintext, key)
+    decrypted = decrypt(ciphertext, key)
+
+    print(f"\nCiphertext: {ciphertext}")
+    print(f"Decrypted : {decrypted}")

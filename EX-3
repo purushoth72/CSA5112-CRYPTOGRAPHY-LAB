@@ -1,0 +1,130 @@
+import string
+
+ALPHABET = "ABCDEFGHIKLMNOPQRSTUVWXYZ" 
+def normalize_keyword(keyword: str) -> str:
+    s = []
+    seen = set()
+    for ch in keyword.upper():
+        if ch.isalpha():
+            ch = 'I' if ch == 'J' else ch
+            if ch not in seen:
+                s.append(ch)
+                seen.add(ch)
+    return "".join(s)
+
+def build_key_square(keyword: str):
+    """Return 5x5 matrix and a position map {letter: (r,c)}."""
+    key = normalize_keyword(keyword)
+    for ch in ALPHABET:
+        if ch not in key:
+            key += ch
+    matrix = [list(key[i:i+5]) for i in range(0, 25, 5)]
+    pos = {}
+    for r in range(5):
+        for c in range(5):
+            pos[matrix[r][c]] = (r, c)
+    return matrix, pos
+
+def prepare_plaintext(text: str) -> str:
+    """Uppercase, strip non-letters, J→I."""
+    t = []
+    for ch in text.upper():
+        if ch.isalpha():
+            t.append('I' if ch == 'J' else ch)
+    return "".join(t)
+
+def digraphs_for_encryption(clean: str):
+    """Split into digraphs, insert X between doubles, pad with X if odd."""
+    pairs = []
+    i = 0
+    while i < len(clean):
+        a = clean[i]
+        b = ''
+        if i + 1 < len(clean):
+            b = clean[i+1]
+            if a == b:     
+                b = 'X' if a != 'X' else 'Q'  # avoid AA; if A is X, use Q
+                pairs.append((a, b))
+                i += 1
+                continue
+            else:
+                pairs.append((a, b))
+                i += 2
+        else:
+            # last odd letter -> pad
+            b = 'X' if a != 'X' else 'Q'
+            pairs.append((a, b))
+            i += 1
+    return pairs
+
+def digraphs_from_text(text: str):
+    """Ciphertext is already in pairs: just clean and chunk."""
+    clean = prepare_plaintext(text)
+    return [(clean[i], clean[i+1]) for i in range(0, len(clean), 2)]
+
+def enc_pair(a, b, pos, matrix):
+    ra, ca = pos[a]
+    rb, cb = pos[b]
+    if ra == rb:
+        # same row: shift right
+        return matrix[ra][(ca + 1) % 5], matrix[rb][(cb + 1) % 5]
+    if ca == cb:
+        # same column: shift down
+        return matrix[(ra + 1) % 5][ca], matrix[(rb + 1) % 5][cb]
+   
+    return matrix[ra][cb], matrix[rb][ca]
+
+def dec_pair(a, b, pos, matrix):
+    ra, ca = pos[a]
+    rb, cb = pos[b]
+    if ra == rb:
+        # same row: shift left
+        return matrix[ra][(ca - 1) % 5], matrix[rb][(cb - 1) % 5]
+    if ca == cb:
+        # same column: shift up
+        return matrix[(ra - 1) % 5][ca], matrix[(rb - 1) % 5][cb]
+    # rectangle
+    return matrix[ra][cb], matrix[rb][ca]
+
+def playfair_encrypt(plaintext: str, keyword: str) -> str:
+    matrix, pos = build_key_square(keyword)
+    clean = prepare_plaintext(plaintext)
+    pairs = digraphs_for_encryption(clean)
+    out = []
+    for a, b in pairs:
+        ea, eb = enc_pair(a, b, pos, matrix)
+        out.append(ea + eb)
+    return "".join(out)
+
+def playfair_decrypt(ciphertext: str, keyword: str) -> str:
+    matrix, pos = build_key_square(keyword)
+    pairs = digraphs_from_text(ciphertext)
+    out = []
+    for a, b in pairs:
+        da, db = dec_pair(a, b, pos, matrix)
+        out.append(da + db)
+    return "".join(out)
+
+def print_square(matrix):
+    print("\nKey Square (I/J combined):")
+    for row in matrix:
+        print(" ".join(row))
+    print()
+
+
+if __name__ == "__main__":
+    mode = input("Mode (E=encrypt, D=decrypt): ").strip().upper()
+    keyword = input("Keyword: ").strip()
+    text = input("Text: ").strip()
+
+    matrix, _ = build_key_square(keyword)
+    print_square(matrix)
+
+    if mode == 'E':
+        result = playfair_encrypt(text, keyword)
+        print("Ciphertext:", result)
+    elif mode == 'D':
+        result = playfair_decrypt(text, keyword)
+        print("Decrypted (J→I):", result)
+    else:
+        print("Invalid mode. Use E or D.")

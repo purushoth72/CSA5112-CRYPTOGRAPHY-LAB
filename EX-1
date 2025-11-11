@@ -1,0 +1,34 @@
+def caesar_cipher(text, k, mode='encrypt'):
+    """
+    Perform Caesar cipher encryption or decryption.
+    :param text: The input string to encrypt or decrypt.
+    :param k: The shift (1–25).
+    :param mode: 'encrypt' or 'decrypt'.
+    :return: The transformed text.
+    """
+    result = ""
+   
+    if mode == 'decrypt':
+        k = -k
+
+    for char in text:
+        if char.isalpha():
+            start = ord('A') if char.isupper() else ord('a')
+           
+            new_char = chr((ord(char) - start + k) % 26 + start)
+            result += new_char
+        else:
+            result += char  
+
+    return result
+
+
+
+text = input("Enter text: ")
+k = int(input("Enter shift (1–25): "))
+
+encrypted = caesar_cipher(text, k, mode='encrypt')
+decrypted = caesar_cipher(encrypted, k, mode='decrypt')
+
+print(f"\nEncrypted: {encrypted}")
+print(f"Decrypted: {decrypted}")

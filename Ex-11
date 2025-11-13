@@ -1,0 +1,127 @@
+"""
+Interactive Playfair tool.
+- Choose to use the fixed matrix (your supplied one) OR build a square from a keyword.
+- Encrypt or decrypt a supplied message.
+- J is treated as I; non-letters are ignored.
+"""
+
+from typing import List, Tuple, Dict
+
+
+FIXED_SQUARE = [
+    ['M','F','H','I','K'],
+    ['U','N','O','P','Q'],
+    ['Z','V','W','X','Y'],
+    ['E','L','A','R','G'],
+    ['D','S','T','B','C'],
+]
+
+def build_square_from_key(key: str) -> List[List[str]]:
+    k = ''.join(ch.upper() for ch in key if ch.isalpha()).replace('J','I')
+    seen = []
+    for ch in k:
+        if ch not in seen:
+            seen.append(ch)
+    for code in range(ord('A'), ord('Z')+1):
+        ch = chr(code)
+        if ch == 'J': continue
+        if ch not in seen:
+            seen.append(ch)
+    return [seen[i*5:(i+1)*5] for i in range(5)]
+
+def build_pos_map(square: List[List[str]]) -> Dict[str, Tuple[int,int]]:
+    pos = {}
+    for r in range(5):
+        for c in range(5):
+            pos[square[r][c]] = (r,c)
+    return pos
+
+def normalize_text(s: str) -> str:
+    return ''.join(ch.upper() for ch in s if ch.isalpha()).replace('J','I')
+
+def digraphs_for_encrypt(pt: str) -> List[str]:
+    t = normalize_text(pt)
+    digraphs = []
+    i = 0
+    while i < len(t):
+        a = t[i]
+        b = t[i+1] if i+1 < len(t) else ''
+        if b == '':
+            digraphs.append(a + 'X'); i += 1
+        elif a == b:
+            digraphs.append(a + 'X'); i += 1
+        else:
+            digraphs.append(a + b); i += 2
+    return digraphs
+
+def digraphs_for_decrypt(ct: str) -> List[str]:
+    t = normalize_text(ct)
+    if len(t) % 2 == 1:
+        t += 'X'
+    return [t[i:i+2] for i in range(0, len(t), 2)]
+
+def encrypt_pair(a: str, b: str, square: List[List[str]], pos: Dict[str,Tuple[int,int]]) -> str:
+    ra,ca = pos[a]; rb,cb = pos[b]
+    if ra == rb:
+        return square[ra][(ca+1)%5] + square[rb][(cb+1)%5]
+    if ca == cb:
+        return square[(ra+1)%5][ca] + square[(rb+1)%5][cb]
+    return square[ra][cb] + square[rb][ca]
+
+def decrypt_pair(a: str, b: str, square: List[List[str]], pos: Dict[str,Tuple[int,int]]) -> str:
+    ra,ca = pos[a]; rb,cb = pos[b]
+    if ra == rb:
+        return square[ra][(ca-1)%5] + square[rb][(cb-1)%5]
+    if ca == cb:
+        return square[(ra-1)%5][ca] + square[(rb-1)%5][cb]
+    return square[ra][cb] + square[rb][ca]
+
+def pretty_print_square(sq: List[List[str]]) -> str:
+    return '\n'.join(' '.join(row) for row in sq)
+
+def run_once():
+    print("\n--- Interactive Playfair ---")
+    use_fixed = input("Use fixed 5x5 matrix? (y/n) [y]: ").strip().lower()
+    if use_fixed in ('', 'y', 'yes'):
+        square = FIXED_SQUARE
+    else:
+        key = input("Enter keyword to build Playfair square: ").strip()
+        if not key:
+            print("Empty key → using fixed matrix.")
+            square = FIXED_SQUARE
+        else:
+            square = build_square_from_key(key)
+    pos = build_pos_map(square)
+    print("\nPlayfair square in use:")
+    print(pretty_print_square(square))
+
+    mode = ''
+    while mode not in ('e','d'):
+        mode = input("\nChoose: (e)ncrypt or (d)ecrypt: ").strip().lower()
+    if mode == 'e':
+        pt = input("Enter plaintext to encrypt:\n> ")
+        digr = digraphs_for_encrypt(pt)
+        ct = ''.join(encrypt_pair(a,b,square,pos) for a,b in digr)
+        print("\nNormalized plaintext:")
+        print(normalize_text(pt))
+        print("\nDigraphs used:")
+        print(digr)
+        print("\nCiphertext (no spaces):")
+        print(ct)
+    else:
+        ct = input("Enter ciphertext to decrypt:\n> ")
+        digr = digraphs_for_decrypt(ct)
+        pt = ''.join(decrypt_pair(a,b,square,pos) for a,b in digr)
+        print("\nCiphertext normalized (pairs):")
+        print(digr)
+        print("\nDecrypted plaintext (raw; no spacing):")
+        print(pt)
+        print("\nTip: you may need to reinsert spaces and remove padding 'X's manually.\n")
+
+if __name__ == "__main__":
+    while True:
+        run_once()
+        again = input("Run again? (y/n) [n]: ").strip().lower()
+        if again not in ('y','yes'):
+            print("Goodbye.")
+            break

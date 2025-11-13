@@ -1,0 +1,41 @@
+def normalize(text):
+    return "".join(ch for ch in text.lower() if ch.isalpha())
+
+def text_to_nums(text):
+    return [ord(c) - 97 for c in normalize(text)]
+
+def nums_to_text(nums):
+    return "".join(chr(n + 97) for n in nums)
+
+def otp_encrypt(plaintext, key_stream):
+    P = text_to_nums(plaintext)
+    C = [(p + k) % 26 for p, k in zip(P, key_stream)]
+    return C, nums_to_text(C)
+
+def otp_find_key(ciphertext, plaintext):
+    C = text_to_nums(ciphertext)
+    P = text_to_nums(plaintext)
+    K = [(c - p) % 26 for c, p in zip(C, P)]
+    return K
+
+
+plaintext_a = "send more money"
+key_a = [9, 0, 1, 7, 23, 15, 21, 14, 11, 11, 2, 8, 9]
+
+cipher_nums_a, ciphertext_a = otp_encrypt(plaintext_a, key_a)
+
+print("Part (a) Encryption")
+print("Plaintext:", plaintext_a)
+print("Key stream:", key_a)
+print("Ciphertext:", ciphertext_a)
+print("Cipher Numeric:", cipher_nums_a)
+
+
+plaintext_b = "cash not needed"
+
+key_b = otp_find_key(ciphertext_a, plaintext_b)
+
+print("\nPart (b) Derived Key")
+print("Ciphertext:", ciphertext_a)
+print("Desired plaintext:", plaintext_b)
+print("Key needed:", key_b)

@@ -1,0 +1,61 @@
+import numpy as np
+
+
+K = np.array([[9, 4],
+              [5, 7]])
+
+
+plaintext = "meet me at the usual place at ten rather than eight oclock"
+pt = "".join(ch for ch in plaintext.lower() if ch.isalpha())
+
+
+nums = [ord(c)-97 for c in pt]
+
+
+if len(nums) % 2 == 1:
+    nums.append(ord('x') - 97)
+
+
+pairs = [(nums[i], nums[i+1]) for i in range(0, len(nums), 2)]
+
+cipher_nums = []
+for a, b in pairs:
+    P = np.array([[a],[b]])
+    C = (K @ P) % 26
+    cipher_nums.append((C[0,0], C[1,0]))
+
+
+cipher = "".join(chr(c+97) + chr(d+97) for c,d in cipher_nums)
+
+print("Plaintext normalized:")
+print(pt)
+print("\nCiphertext:")
+print(cipher)
+
+
+det = int(round(np.linalg.det(K)))
+det_mod = det % 26
+
+
+for i in range(26):
+    if (det_mod * i) % 26 == 1:
+        det_inv = i
+        break
+
+
+adj = np.array([[ K[1,1], -K[0,1]],
+                [-K[1,0],  K[0,0]]])
+
+Kinv = (det_inv * adj) % 26
+
+decoded_nums = []
+for c, d in cipher_nums:
+    C = np.array([[c],[d]])
+    P = (Kinv @ C) % 26
+    decoded_nums.append((P[0,0], P[1,0]))
+
+
+decoded = "".join(chr(a+97) + chr(b+97) for a,b in decoded_nums)
+
+print("\nRecovered plaintext:")
+print(decoded)

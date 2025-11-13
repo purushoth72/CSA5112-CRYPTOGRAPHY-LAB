@@ -1,0 +1,55 @@
+import string
+
+def generate_cipher_alphabet(keyword):
+    keyword = keyword.upper()
+    result = ""
+
+    for ch in keyword:
+        if ch.isalpha() and ch not in result:
+            result += ch
+
+    for ch in string.ascii_uppercase:
+        if ch not in result:
+            result += ch
+
+    return result 
+
+def encrypt(plaintext, cipher_alpha):
+    plaintext = plaintext.upper()
+    alphabet = string.ascii_uppercase
+    ciphertext = ""
+
+    for ch in plaintext:
+        if ch.isalpha():
+            idx = alphabet.index(ch)
+            ciphertext += cipher_alpha[idx]
+        else:
+            ciphertext += ch 
+    return ciphertext
+
+def decrypt(ciphertext, cipher_alpha):
+    alphabet = string.ascii_uppercase
+    plaintext = ""
+
+    for ch in ciphertext:
+        if ch.isalpha():
+            idx = cipher_alpha.index(ch)
+            plaintext += alphabet[idx]
+        else:
+            plaintext += ch
+    return plaintext
+
+
+
+keyword = input("Enter keyword: ")
+cipher_alpha = generate_cipher_alphabet(keyword)
+
+print("\nCipher alphabet generated from keyword:")
+print(cipher_alpha)
+
+text = input("\nEnter text to encrypt: ")
+encrypted = encrypt(text, cipher_alpha)
+print("Encrypted:", encrypted)
+
+decrypted = decrypt(encrypted, cipher_alpha)
+print("Decrypted:", decrypted)

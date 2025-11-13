@@ -1,0 +1,56 @@
+fixed_square = [
+    ['M','F','H','I','K'],
+    ['U','N','O','P','Q'],
+    ['Z','V','W','X','Y'],
+    ['E','L','A','R','G'],
+    ['D','S','T','B','C'],
+]
+
+
+pos = {}
+for r in range(5):
+    for c in range(5):
+        pos[fixed_square[r][c]] = (r, c)
+
+def normalize_text(s: str) -> str:
+    s = ''.join(ch.upper() for ch in s if ch.isalpha())
+    return s.replace('J', 'I')
+
+def make_digraphs_encrypt(pt: str):
+    pt = normalize_text(pt)
+    digraphs = []
+    i = 0
+    while i < len(pt):
+        a = pt[i]
+        b = pt[i+1] if i+1 < len(pt) else ''
+        if b == '':
+            digraphs.append(a + 'X'); i += 1
+        elif a == b:
+            digraphs.append(a + 'X'); i += 1
+        else:
+            digraphs.append(a + b); i += 2
+    return digraphs
+
+def encrypt_pair(a, b):
+    ra, ca = pos[a]; rb, cb = pos[b]
+    if ra == rb:
+        return fixed_square[ra][(ca+1)%5] + fixed_square[rb][(cb+1)%5]
+    if ca == cb:
+        return fixed_square[(ra+1)%5][ca] + fixed_square[(rb+1)%5][cb]
+    return fixed_square[ra][cb] + fixed_square[rb][ca]
+
+
+plaintext = "Must see you over Cadogan West. Coming at once."
+
+digraphs = make_digraphs_encrypt(plaintext)
+ciphertext = ''.join(encrypt_pair(a,b) for a,b in digraphs)
+
+print("Playfair square:")
+for row in fixed_square:
+    print(' '.join(row))
+print("\nPlaintext (normalized):")
+print(normalize_text(plaintext))
+print("\nDigraphs used for encryption:")
+print(digraphs)
+print("\nCiphertext (no spacing):")
+print(ciphertext)

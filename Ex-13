@@ -1,0 +1,184 @@
+MOD = 26
+
+
+def egcd(a, b):
+    if b == 0:
+        return (a, 1, 0)
+    g, x1, y1 = egcd(b, a % b)
+    return (g, y1, x1 - (a // b) * y1)
+
+def modinv(a, m=MOD):
+    a = a % m
+    g, x, _ = egcd(a, m)
+    if g != 1:
+        raise ValueError(f"{a} has no inverse mod {m} (gcd={g})")
+    return x % m
+
+def mat_mul(A, B, mod=MOD):
+    r, m = len(A), len(B)
+    n = len(B[0])
+    C = [[0]*n for _ in range(r)]
+    for i in range(r):
+        for j in range(n):
+            s = 0
+            for k in range(m):
+                s += A[i][k] * B[k][j]
+            C[i][j] = s % mod
+    return C
+
+def mat_identity(n):
+    I = [[0]*n for _ in range(n)]
+    for i in range(n):
+        I[i][i] = 1
+    return I
+
+def mat_inv_mod(A, mod=MOD):
+    n = len(A)
+    M = [ [x % mod for x in row] + [1 if i==j else 0 for j in range(n)] for i,row in enumerate(A) ]
+    for col in range(n):
+        pivot = None
+        for r in range(col, n):
+            if M[r][col] % mod != 0:
+                pivot = r
+                break
+        if pivot is None:
+            raise ValueError("Matrix singular mod {} (no pivot in col {})".format(mod, col))
+        if pivot != col:
+            M[col], M[pivot] = M[pivot], M[col]
+        inv_pivot = modinv(M[col][col], mod)
+        M[col] = [(val * inv_pivot) % mod for val in M[col]]
+        for r in range(n):
+            if r == col: continue
+            factor = M[r][col]
+            if factor % mod != 0:
+                M[r] = [ (M[r][c] - factor * M[col][c]) % mod for c in range(2*n) ]
+    inv = [ row[n:] for row in M ]
+    return inv
+
+def text_to_nums(s):
+    return [ (ord(ch.lower()) - 97) % 26 for ch in s if ch.isalpha() ]
+
+def nums_to_text(nums):
+    return "".join(chr(n + 97) for n in nums)
+
+def pad_list_to_blocksize(lst, blocksize, pad_val=23):
+    if len(lst) % blocksize != 0:
+        lst = lst + [pad_val] * (blocksize - (len(lst) % blocksize))
+    return lst
+
+def chunk_list(lst, size):
+    return [ lst[i:i+size] for i in range(0, len(lst), size) ]
+
+
+def hill_encrypt(plaintext, K):
+    n = len(K)
+    nums = text_to_nums(plaintext)
+    nums = pad_list_to_blocksize(nums, n)
+    chunks = chunk_list(nums, n)
+    cipher_nums = []
+    for ch in chunks:
+        P = [[x] for x in ch]
+        C = mat_mul(K, P)
+        cipher_nums.extend([c[0] for c in C])
+    return nums_to_text([x % MOD for x in cipher_nums])
+
+def hill_decrypt(ciphertext, K):
+    n = len(K)
+    nums = text_to_nums(ciphertext)
+    nums = pad_list_to_blocksize(nums, n)
+    chunks = chunk_list(nums, n)
+    Kinv = mat_inv_mod(K)
+    plain_nums = []
+    for ch in chunks:
+        C = [[x] for x in ch]
+        P = mat_mul(Kinv, C)
+        plain_nums.extend([p[0] % MOD for p in P])
+    return nums_to_text(plain_nums)
+
+def recover_key_from_pairs(plain_blocks, cipher_blocks):
+    n = len(plain_blocks[0])
+   
+    if len(plain_blocks) < n or len(cipher_blocks) < n:
+        raise ValueError("need at least n blocks for n x n key")
+  
+    Pmat = [ [ plain_blocks[j][i] for j in range(n) ] for i in range(n) ]
+    Cmat = [ [ cipher_blocks[j][i] for j in range(n) ] for i in range(n) ]
+    Pinv = mat_inv_mod(Pmat)
+    K = mat_mul(Cmat, Pinv)
+    return [ [val % MOD for val in row] for row in K ]
+
+
+def demo_known_plaintext():
+    print("=== Known-plaintext attack demo (n=2) ===")
+    K_true = [[9,4],[5,7]]
+    print("True key K:", K_true)
+    plaintext = "meet me at the usual place at ten rather than eight oclock"
+    pt_norm = "".join(ch for ch in plaintext.lower() if ch.isalpha())
+    print("Plaintext normalized:", pt_norm)
+
+    ciphertext = hill_encrypt(pt_norm, K_true)
+    print("Ciphertext produced by true key:", ciphertext)
+
+    n = 2
+    p_nums = text_to_nums(pt_norm)
+    c_nums = text_to_nums(ciphertext)
+    p_nums = pad_list_to_blocksize(p_nums, n)
+    c_nums = pad_list_to_blocksize(c_nums, n)
+    p_blocks = chunk_list(p_nums, n)
+    c_blocks = chunk_list(c_nums, n)
+
+   
+    pair = None
+    for i in range(len(p_blocks)):
+        for j in range(i+1, len(p_blocks)):
+            Pmat = [ [ p_blocks[col][row] for col in (i,j) ] for row in range(n) ]
+            try:
+                _ = mat_inv_mod(Pmat)
+                pair = (i,j); break
+            except Exception:
+                continue
+        if pair: break
+
+    if not pair:
+        print("Couldn't find independent pair of blocks.")
+        return
+
+    i, j = pair
+    print("Using plaintext blocks", i, j)
+    P_choose = [ p_blocks[i], p_blocks[j] ]
+    C_choose = [ c_blocks[i], c_blocks[j] ]
+    print("P columns:", P_choose)
+    print("C columns:", C_choose)
+
+    K_rec = recover_key_from_pairs(P_choose, C_choose)
+    print("Recovered key K (mod 26):", K_rec)
+
+    recovered_plain = hill_decrypt(ciphertext, K_rec)
+    print("Recovered plaintext:", recovered_plain)
+
+def demo_chosen_plaintext():
+    print("\n=== Chosen-plaintext attack demo (n=2) ===")
+    K_true = [[9,4],[5,7]]
+    print("True key K:", K_true)
+   
+    chosen_plain_blocks = [[1,0],[0,1]] 
+    pt_nums = []
+    for blk in chosen_plain_blocks:
+        pt_nums.extend(blk)
+    pt_text = nums_to_text(pt_nums)
+    print("Chosen plaintext text:", pt_text)
+    cipher_text = hill_encrypt(pt_text, K_true)
+    print("Ciphertext returned:", cipher_text)
+
+    c_nums = text_to_nums(cipher_text)
+    c_nums = pad_list_to_blocksize(c_nums, 2)
+    c_blocks = chunk_list(c_nums, 2)
+    print("Cipher blocks:", c_blocks)
+
+    K_recovered = [ [ c_blocks[j][i] for j in range(2) ] for i in range(2) ]
+    print("Recovered key directly from C columns:", K_recovered)
+    print("Matches true key?", K_recovered == [[9,4],[5,7]])
+
+if __name__ == "__main__":
+    demo_known_plaintext()
+    demo_chosen_plaintext()

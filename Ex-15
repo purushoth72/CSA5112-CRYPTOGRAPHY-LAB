@@ -1,0 +1,70 @@
+import math
+
+EN_FREQ = {
+    'E': 12.02, 'T': 9.10, 'A': 8.12, 'O': 7.68, 'I': 7.31, 'N': 6.95,
+    'S': 6.28, 'R': 6.02, 'H': 5.92, 'L': 4.02, 'D': 3.82, 'C': 3.61,
+    'U': 2.88, 'M': 2.61, 'F': 2.30, 'Y': 2.11, 'W': 2.09, 'G': 2.03,
+    'P': 1.82, 'B': 1.49, 'V': 1.11, 'K': 0.69, 'X': 0.17, 'Q': 0.11,
+    'J': 0.10, 'Z': 0.07
+}
+
+
+total = sum(EN_FREQ.values())
+EN_LOG = {ch: math.log(EN_FREQ[ch] / total) for ch in EN_FREQ}
+
+COMMON_WORDS = ["the", "and", "to", "of", "that", "is", "you", "for", "not"]
+
+def decrypt_caesar(text, shift):
+    result = ""
+    for ch in text:
+        if 'A' <= ch <= 'Z':
+            idx = ord(ch) - 65
+            result += chr(((idx - shift) % 26) + 65)
+        elif 'a' <= ch <= 'z':
+            idx = ord(ch) - 97
+            result += chr(((idx - shift) % 26) + 97)
+        else:
+            result += ch
+    return result
+
+def score_text(text):
+    letters = [ch.upper() for ch in text if ch.isalpha()]
+    if not letters:
+        return -999999
+    
+    score = 0.0
+    for ch in letters:
+        score += EN_LOG.get(ch, math.log(1e-6))
+
+    score /= len(letters)
+
+
+    t = text.lower()
+    for w in COMMON_WORDS:
+        if w in t:
+            score += len(w) * 0.2
+
+    return score
+
+def attack(ciphertext, top_n=10):
+    results = []
+    for s in range(26):
+        pt = decrypt_caesar(ciphertext, s)
+        sc = score_text(pt)
+        results.append((sc, s, pt))
+    results.sort(reverse=True)
+    return results[:top_n]
+
+ciphertext = input("Enter ciphertext:\n> ")
+n = input("How many top plaintexts to show? (e.g. 10)\n> ")
+
+try:
+    n = int(n)
+except:
+    n = 10
+
+results = attack(ciphertext, n)
+
+print("\nTop", n, "Candidates:\n")
+for score, shift, pt in results:
+    print(f"Shift {shift:2d} | Score {score:7.3f} | {pt}")

@@ -1,0 +1,76 @@
+import random
+import math
+
+QUAD = {
+    "TION": -5.0, "THER": -5.1, "HERE": -5.2, "OULD": -5.3,
+    "THE ": -3.1, "AND ": -3.7, "ING ": -3.4, " ENT": -4.0,
+    "ION ": -4.1, "ERE ": -4.3, "HER ": -4.2
+}
+FLOOR = -12.0  
+
+def score(text):
+    text = text.upper()
+    s = 0.0
+    for i in range(len(text)-3):
+        quad = text[i:i+4]
+        s += QUAD.get(quad, FLOOR)
+    return s
+
+def decrypt(text, key):
+    m = {chr(65+i): key[i] for i in range(26)}
+    out = []
+    for ch in text.upper():
+        out.append(m[ch] if ch.isalpha() else ch)
+    return "".join(out)
+
+def random_key():
+    k = list("ABCDEFGHIJKLMNOPQRSTUVWXYZ")
+    random.shuffle(k)
+    return k
+
+def mutate(k):
+    k = k[:]
+    a, b = random.randrange(26), random.randrange(26)
+    k[a], k[b] = k[b], k[a]
+    return k
+
+def hillclimb(cipher, iters=2000):
+    key = random_key()
+    best_plain = decrypt(cipher, key)
+    best_score = score(best_plain)
+
+    for _ in range(iters):
+        k2 = mutate(key)
+        p2 = decrypt(cipher, k2)
+        s2 = score(p2)
+        if s2 > best_score:
+            key = k2
+            best_score = s2
+            best_plain = p2
+    return best_score, best_plain
+
+def attack(cipher, top_n=5, attempts=30):
+    results = []
+    for _ in range(attempts):
+        s, p = hillclimb(cipher)
+        results.append((s, p))
+    results.sort(reverse=True)
+    return results[:top_n]
+
+
+cipher = input("Enter ciphertext:\n> ")
+n = input("How many top plaintexts? (e.g. 10)\n> ")
+
+try:
+    n = int(n)
+except:
+    n = 10
+
+print("\nRunning attack...\n")
+cands = attack(cipher, n)
+
+for s, p in cands:
+    print("-"*40)
+    print("Score:", s)
+    print("Plaintext guess:")
+    print(p)

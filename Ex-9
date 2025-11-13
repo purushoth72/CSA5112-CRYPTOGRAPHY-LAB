@@ -1,0 +1,53 @@
+def build_square(key):
+    key = ''.join([c for c in key.upper() if c.isalpha()])
+    key = key.replace('J', 'I')
+    seen = []
+    for ch in key:
+        if ch not in seen:
+            seen.append(ch)
+    for ch in map(chr, range(ord('A'), ord('Z')+1)):
+        if ch == 'J':
+            continue
+        if ch not in seen:
+            seen.append(ch)
+    square = [seen[i*5:(i+1)*5] for i in range(5)]
+    pos = {square[r][c]: (r, c) for r in range(5) for c in range(5)}
+    return square, pos
+
+def preprocess_ciphertext(ctext):
+    t = ''.join([c for c in ctext.upper() if c.isalpha()])
+    t = t.replace('J', 'I')
+    if len(t) % 2 == 1:
+        t += 'X'
+    return [t[i:i+2] for i in range(0, len(t), 2)]
+
+def decrypt_pair(a, b, square, pos):
+    ra, ca = pos[a]
+    rb, cb = pos[b]
+    if ra == rb: 
+        return square[ra][(ca-1) % 5] + square[rb][(cb-1) % 5]
+    elif ca == cb: 
+        return square[(ra-1) % 5][ca] + square[(rb-1) % 5][cb]
+    else:
+        return square[ra][cb] + square[rb][ca]
+
+def decrypt_playfair(ciphertext, key):
+    square, pos = build_square(key)
+    pairs = preprocess_ciphertext(ciphertext)
+    plaintext = ''.join(decrypt_pair(p[0], p[1], square, pos) for p in pairs)
+    return plaintext, square
+
+def pretty_print_square(square):
+    return '\n'.join(' '.join(row) for row in square)
+
+
+key = input("Enter Playfair key: ")
+ciphertext = input("Enter ciphertext: ")
+
+plaintext, square = decrypt_playfair(ciphertext, key)
+
+print("\nPlayfair Square:")
+print(pretty_print_square(square))
+
+print("\nDecrypted plaintext (raw):")
+print(plaintext)

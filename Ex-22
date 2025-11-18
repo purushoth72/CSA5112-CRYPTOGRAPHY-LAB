@@ -1,0 +1,180 @@
+#!/usr/bin/env python3
+# S-DES with CBC mode (pure Python).
+# Test vector:
+# IV = 1010 1010
+# Plaintext = 0000 0001 0010 0011  (16 bits -> two 8-bit blocks)
+# Key = 01111 11101 (10 bits)
+# Expected ciphertext = 11110100 00001011
+
+# -------------------------
+# Helpers for bit operations
+# -------------------------
+def str_to_bits(s):
+    return [int(c) for c in s.replace(" ", "").strip()]
+
+def bits_to_str(bits):
+    return "".join(str(b) for b in bits)
+
+def permute(bits, table):
+    return [bits[i-1] for i in table]
+
+def left_shift(bits, n):
+    return bits[n:] + bits[:n]
+
+def xor_bits(a, b):
+    return [x ^ y for x, y in zip(a, b)]
+
+# -------------------------
+# S-DES parameters
+# -------------------------
+P10 = [3,5,2,7,4,10,1,9,8,6]
+P8  = [6,3,7,4,8,5,10,9]
+P4  = [2,4,3,1]
+IP  = [2,6,3,1,4,8,5,7]
+IP_INV = [4,1,3,5,7,2,8,6]
+EP = [4,1,2,3,2,3,4,1]
+
+S0 = [
+    [1,0,3,2],
+    [3,2,1,0],
+    [0,2,1,3],
+    [3,1,3,2]
+]
+S1 = [
+    [0,1,2,3],
+    [2,0,1,3],
+    [3,0,1,0],
+    [2,1,0,3]
+]
+
+# -------------------------
+# Key schedule: generate K1, K2
+# -------------------------
+def generate_keys(key10_bits):
+    p10 = permute(key10_bits, P10)
+    left = p10[:5]
+    right = p10[5:]
+    left1 = left_shift(left, 1)
+    right1 = left_shift(right, 1)
+    k1 = permute(left1 + right1, P8)
+    left2 = left_shift(left1, 2)
+    right2 = left_shift(right1, 2)
+    k2 = permute(left2 + right2, P8)
+    return k1, k2
+
+# -------------------------
+# The f_k function and S-box helpers
+# -------------------------
+def sbox_lookup(bits4, S):
+    # bits4: list of 4 bits [b0,b1,b2,b3]
+    row = (bits4[0] << 1) | bits4[3]
+    col = (bits4[1] << 1) | bits4[2]
+    val = S[row][col]
+    return [(val >> 1) & 1, val & 1]
+
+def fk(bits8, subkey):
+    left = bits8[:4]
+    right = bits8[4:]
+    expanded = permute(right, EP)                # 8 bits
+    xorres = xor_bits(expanded, subkey)          # 8 bits
+    left4 = xorres[:4]
+    right4 = xorres[4:]
+    s0_out = sbox_lookup(left4, S0)              # 2 bits
+    s1_out = sbox_lookup(right4, S1)             # 2 bits
+    combined = s0_out + s1_out                   # 4 bits
+    p4 = permute(combined, P4)                   # 4 bits
+    left_xor = xor_bits(left, p4)
+    return left_xor + right                       # 8 bits (new L || R)
+
+# -------------------------
+# S-DES encrypt / decrypt single block (8 bits)
+# -------------------------
+def sdes_encrypt_block(bits8, k1, k2):
+    ip = permute(bits8, IP)
+    after_fk1 = fk(ip, k1)
+    switched = after_fk1[4:] + after_fk1[:4]
+    after_fk2 = fk(switched, k2)
+    cipher = permute(after_fk2, IP_INV)
+    return cipher
+
+def sdes_decrypt_block(bits8, k1, k2):
+    ip = permute(bits8, IP)
+    after_fk1 = fk(ip, k2)      # note: subkeys reversed for decryption
+    switched = after_fk1[4:] + after_fk1[:4]
+    after_fk2 = fk(switched, k1)
+    plain = permute(after_fk2, IP_INV)
+    return plain
+
+# -------------------------
+# CBC mode using S-DES blocks
+# -------------------------
+def cbc_encrypt(plaintext_bits, key_bits_10, iv_bits):
+    if len(iv_bits) != 8:
+        raise ValueError("IV must be 8 bits")
+    if len(plaintext_bits) % 8 != 0:
+        raise ValueError("Plaintext length must be multiple of 8 bits (complete blocks)")
+
+    k1, k2 = generate_keys(key_bits_10)
+    ciphertext = []
+    prev = iv_bits[:]
+    for i in range(0, len(plaintext_bits), 8):
+        block = plaintext_bits[i:i+8]
+        x = xor_bits(block, prev)
+        c = sdes_encrypt_block(x, k1, k2)
+        ciphertext.extend(c)
+        prev = c
+    return ciphertext
+
+def cbc_decrypt(cipher_bits, key_bits_10, iv_bits):
+    if len(iv_bits) != 8:
+        raise ValueError("IV must be 8 bits")
+    if len(cipher_bits) % 8 != 0:
+        raise ValueError("Ciphertext length must be multiple of 8 bits (complete blocks)")
+
+    k1, k2 = generate_keys(key_bits_10)
+    plaintext = []
+    prev = iv_bits[:]
+    for i in range(0, len(cipher_bits), 8):
+        c = cipher_bits[i:i+8]
+        d = sdes_decrypt_block(c, k1, k2)
+        p = xor_bits(d, prev)
+        plaintext.extend(p)
+        prev = c
+    return plaintext
+
+# -------------------------
+# Demo using your test vector
+# -------------------------
+def demo():
+    key_str = "01111 11101"
+    key_bits = str_to_bits(key_str)
+
+    iv_str = "1010 1010"
+    iv_bits = str_to_bits(iv_str)
+
+    plaintext_str = "0000 0001 0010 0011"
+    plaintext_bits = str_to_bits(plaintext_str)
+
+    # Encrypt
+    ciphertext_bits = cbc_encrypt(plaintext_bits, key_bits, iv_bits)
+    print("Plaintext (bits):", plaintext_str.replace(" ", ""))
+    print("Key (10 bits):   ", key_str.replace(" ", ""))
+    print("IV (8 bits):     ", iv_str.replace(" ", ""))
+    print("Ciphertext (bits):", bits_to_str(ciphertext_bits[:8]), bits_to_str(ciphertext_bits[8:]))
+
+    # Show combined:
+    print("Combined cipher:", bits_to_str(ciphertext_bits))
+
+    # Decrypt back
+    recovered_bits = cbc_decrypt(ciphertext_bits, key_bits, iv_bits)
+    print("Recovered plaintext:", bits_to_str(recovered_bits[:8]), bits_to_str(recovered_bits[8:]))
+    print("Recovered combined:", bits_to_str(recovered_bits))
+
+    # Validation vs expected
+    expected_cipher = "1111 0100 0000 1011"
+    print("Expected cipher:  ", expected_cipher.replace(" ", ""))
+    ok = bits_to_str(ciphertext_bits) == expected_cipher.replace(" ", "")
+    print("Matches expected:", ok)
+
+if __name__ == "__main__":
+    demo()

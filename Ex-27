@@ -1,0 +1,35 @@
+# RSA encryption of alphabetic characters using large public key (e, n)
+
+def char_to_int(c):
+    return ord(c.upper()) - ord('A')
+
+def int_to_char(i):
+    return chr(i + ord('A'))
+
+def rsa_encrypt_char(m, e, n):
+    return pow(m, e, n)
+
+def rsa_encrypt_message(message, e, n):
+    encrypted_blocks = []
+    for char in message:
+        if char.isalpha():
+            m = char_to_int(char)
+            c = rsa_encrypt_char(m, e, n)
+            encrypted_blocks.append(c)
+    return encrypted_blocks
+
+def main():
+    # Example large public key (e, n)
+    e = 65537
+    n = 9516311845790656153499716760847001433441357  # Example 128-bit RSA modulus
+
+    message = "HELLOALICE"
+    print(f"Original message: {message}")
+
+    encrypted = rsa_encrypt_message(message, e, n)
+    print("Encrypted blocks:")
+    for i, c in enumerate(encrypted):
+        print(f"Char {message[i]} → Cipher = {c}")
+
+if __name__ == "__main__":
+    main()

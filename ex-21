@@ -1,0 +1,223 @@
+#!/usr/bin/env python3
+"""
+ECB, CBC, CFB modes demo (toy block cipher).
+- Block size = 16 bytes
+- Padding: 1 bit followed by zeros, implemented as 0x80 then 0x00... (ISO/IEC style)
+- Option `always_pad`: if True, always append a full padding block even when plaintext is aligned.
+- Toy cipher: block XOR with key-block (NOT SECURE — for demonstration only).
+"""
+
+import os, binascii
+
+BLOCK_SIZE = 16  # bytes (128-bit block size)
+# For CFB mode we allow segment size to be an integer number of bytes (1..BLOCK_SIZE)
+# but in this demo we'll show CFB with segment_size = BLOCK_SIZE (full-block CFB).
+
+# -----------------------------
+# Padding utilities: "1 followed by zeros"
+# -----------------------------
+def pad_1bit(data: bytes, block_size: int, always_pad: bool = False) -> bytes:
+    """
+    Pad data so its length is a positive multiple of block_size.
+    Padding format: 0x80 followed by 0x00 bytes as needed.
+    If always_pad is True, add a full block of padding even if already aligned.
+    """
+    if block_size <= 0:
+        raise ValueError("block_size must be positive")
+    remainder = len(data) % block_size
+    if remainder == 0:
+        if always_pad:
+            # add an entire padding block: 0x80 + zeros
+            return data + bytes([0x80]) + bytes(block_size - 1)
+        else:
+            return data
+    else:
+        pad_len = block_size - remainder
+        assert pad_len >= 1
+        return data + bytes([0x80]) + bytes(pad_len - 1)
+
+def unpad_1bit(padded: bytes, block_size: int) -> bytes:
+    """
+    Remove the 1-bit-plus-zero padding. If padding not found, raises ValueError.
+    Scans backwards to find the 0x80 marker in the last block(s).
+    """
+    if len(padded) == 0 or len(padded) % block_size != 0:
+        raise ValueError("Invalid padded data length")
+    # Search backwards for 0x80 (the marker). It must be inside the last block.
+    # We'll search from the last byte backwards until we find 0x80.
+    i = len(padded) - 1
+    while i >= 0:
+        if padded[i] == 0x80:
+            # All bytes after i must be zero
+            if any(b != 0x00 for b in padded[i+1:len(padded)]):
+                raise ValueError("Invalid padding: non-zero after 0x80")
+            return padded[:i]
+        elif padded[i] != 0x00:
+            # If we hit a non-zero byte that is not 0x80, padding invalid
+            raise ValueError("Invalid padding: missing 0x80 marker")
+        i -= 1
+    raise ValueError("Invalid padding: marker 0x80 not found")
+
+# -----------------------------
+# Toy block cipher (XOR block) - educational only
+# Replace block_encrypt/block_decrypt with real cipher calls in production.
+# -----------------------------
+def xor_bytes(a: bytes, b: bytes) -> bytes:
+    return bytes(x ^ y for x, y in zip(a, b))
+
+def block_encrypt(plain_block: bytes, key_block: bytes) -> bytes:
+    assert len(plain_block) == len(key_block)
+    # simple XOR "encryption"
+    return xor_bytes(plain_block, key_block)
+
+def block_decrypt(cipher_block: bytes, key_block: bytes) -> bytes:
+    # symmetric for XOR
+    return xor_bytes(cipher_block, key_block)
+
+# -----------------------------
+# ECB
+# -----------------------------
+def encrypt_ecb(plaintext: bytes, key_block: bytes, block_size: int, always_pad: bool=False) -> bytes:
+    pt = pad_1bit(plaintext, block_size, always_pad)
+    out = b""
+    for i in range(0, len(pt), block_size):
+        blk = pt[i:i+block_size]
+        out += block_encrypt(blk, key_block)
+    return out
+
+def decrypt_ecb(ciphertext: bytes, key_block: bytes, block_size: int) -> bytes:
+    if len(ciphertext) % block_size != 0:
+        raise ValueError("Ciphertext length must be a multiple of block size")
+    out = b""
+    for i in range(0, len(ciphertext), block_size):
+        blk = ciphertext[i:i+block_size]
+        out += block_decrypt(blk, key_block)
+    return unpad_1bit(out, block_size)
+
+# -----------------------------
+# CBC
+# -----------------------------
+def encrypt_cbc(plaintext: bytes, key_block: bytes, iv: bytes, block_size: int, always_pad: bool=False) -> bytes:
+    if len(iv) != block_size:
+        raise ValueError("IV length must equal block size")
+    pt = pad_1bit(plaintext, block_size, always_pad)
+    out = b""
+    prev = iv
+    for i in range(0, len(pt), block_size):
+        blk = pt[i:i+block_size]
+        to_enc = xor_bytes(blk, prev)
+        ct = block_encrypt(to_enc, key_block)
+        out += ct
+        prev = ct
+    return out
+
+def decrypt_cbc(ciphertext: bytes, key_block: bytes, iv: bytes, block_size: int) -> bytes:
+    if len(ciphertext) % block_size != 0 or len(iv) != block_size:
+        raise ValueError("Invalid lengths")
+    out = b""
+    prev = iv
+    for i in range(0, len(ciphertext), block_size):
+        ct = ciphertext[i:i+block_size]
+        decrypted = block_decrypt(ct, key_block)
+        pt = xor_bytes(decrypted, prev)
+        out += pt
+        prev = ct
+    return unpad_1bit(out, block_size)
+
+# -----------------------------
+# CFB (cipher feedback) — we implement segment_size in bytes.
+# For full-block CFB, segment_size == block_size.
+# -----------------------------
+def encrypt_cfb(plaintext: bytes, key_block: bytes, iv: bytes, block_size: int, segment_size: int, always_pad: bool=False) -> bytes:
+    """
+    CFB: ciphertext feedback mode.
+    segment_size must divide block_size and be in bytes (1..block_size).
+    plaintext length must be multiple of segment_size.
+    """
+    if len(iv) != block_size:
+        raise ValueError("IV length must equal block size")
+    if block_size % segment_size != 0:
+        raise ValueError("segment_size must divide block_size")
+    # Pad plaintext to multiple of segment_size (not block_size) using 1-bit method at block granularity.
+    # For this exercise we will enforce total plaintext length is a multiple of segment_size.
+    pt = plaintext
+    # If padding is requested, we pad to a multiple of block_size, then treat as segments
+    if len(pt) % segment_size != 0 or (always_pad and len(pt) % block_size == 0):
+        # pad to block granularity; then caller must ensure segments align
+        pt = pad_1bit(pt, block_size, always_pad)
+    if len(pt) % segment_size != 0:
+        raise ValueError("Plaintext length must be a multiple of segment_size after padding")
+
+    out = b""
+    reg = iv  # shift register (block size)
+    for i in range(0, len(pt), segment_size):
+        segment = pt[i:i+segment_size]
+        # Encrypt the register, take leftmost segment_size bytes as keystream
+        enc_reg = block_encrypt(reg, key_block)
+        ks = enc_reg[:segment_size]
+        ct_segment = xor_bytes(segment, ks)
+        out += ct_segment
+        # shift register: left shift by segment_size bytes, append ct_segment at right
+        reg = reg[segment_size:] + ct_segment
+    return out
+
+def decrypt_cfb(ciphertext: bytes, key_block: bytes, iv: bytes, block_size: int, segment_size: int) -> bytes:
+    if len(iv) != block_size:
+        raise ValueError("IV length must equal block size")
+    if block_size % segment_size != 0:
+        raise ValueError("segment_size must divide block_size")
+    if len(ciphertext) % segment_size != 0:
+        raise ValueError("Ciphertext length must be multiple of segment_size")
+    out = b""
+    reg = iv
+    for i in range(0, len(ciphertext), segment_size):
+        ct_seg = ciphertext[i:i+segment_size]
+        enc_reg = block_encrypt(reg, key_block)
+        ks = enc_reg[:segment_size]
+        pt_seg = xor_bytes(ct_seg, ks)
+        out += pt_seg
+        reg = reg[segment_size:] + ct_seg
+    # After decryption, unpad at block granularity
+    return unpad_1bit(out, block_size)
+
+# -----------------------------
+# Utilities & Demo
+# -----------------------------
+def show_hex_blocks(label: str, data: bytes, block_size: int=BLOCK_SIZE):
+    print(label)
+    for i in range(0, len(data), block_size):
+        print("  Block {:02d}: {}".format(i//block_size + 1, binascii.hexlify(data[i:i+block_size]).decode()))
+    print()
+
+def demo():
+    key = b"THIS_IS_16_BYTES"  # 16 bytes
+    iv  = b"INIT_VECTOR_16BY"  # 16 bytes (must match block size)
+    plaintext = b"Hello-ECB-CBC-CFB-demo. This message will be padded to block size."
+
+    print("Plaintext:", plaintext)
+    print()
+
+    # ECB
+    c_ecb = encrypt_ecb(plaintext, key, BLOCK_SIZE, always_pad=True)
+    show_hex_blocks("ECB ciphertext (always_pad=True):", c_ecb)
+    p_ecb = decrypt_ecb(c_ecb, key, BLOCK_SIZE)
+    print("ECB decrypted:", p_ecb)
+    print()
+
+    # CBC
+    c_cbc = encrypt_cbc(plaintext, key, iv, BLOCK_SIZE, always_pad=True)
+    show_hex_blocks("CBC ciphertext (always_pad=True):", c_cbc)
+    p_cbc = decrypt_cbc(c_cbc, key, iv, BLOCK_SIZE)
+    print("CBC decrypted:", p_cbc)
+    print()
+
+    # CFB (segment_size = block_size for simplicity)
+    seg = BLOCK_SIZE
+    c_cfb = encrypt_cfb(plaintext, key, iv, BLOCK_SIZE, seg, always_pad=True)
+    show_hex_blocks("CFB ciphertext (segment_size=block_size, always_pad=True):", c_cfb)
+    p_cfb = decrypt_cfb(c_cfb, key, iv, BLOCK_SIZE, seg)
+    print("CFB decrypted:", p_cfb)
+    print()
+
+if __name__ == "__main__":
+    demo()

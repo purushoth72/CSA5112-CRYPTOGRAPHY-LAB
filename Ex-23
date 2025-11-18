@@ -1,0 +1,92 @@
+# S-DES key generation and encryption/decryption in CTR mode
+
+# Permutation functions
+def permute(bits, pattern):
+    return [bits[i] for i in pattern]
+
+def left_shift(bits, n):
+    return bits[n:] + bits[:n]
+
+# Key generation (10-bit key to two 8-bit subkeys)
+def generate_keys(key):
+    P10 = [2, 4, 1, 6, 3, 9, 0, 8, 7, 5]
+    P8  = [5, 2, 6, 3, 7, 4, 9, 8]
+    key = permute(key, P10)
+    left, right = key[:5], key[5:]
+    left, right = left_shift(left, 1), left_shift(right, 1)
+    K1 = permute(left + right, P8)
+    left, right = left_shift(left, 2), left_shift(right, 2)
+    K2 = permute(left + right, P8)
+    return K1, K2
+
+# S-boxes
+S0 = [[1,0,3,2],[3,2,1,0],[0,2,1,3],[3,1,3,2]]
+S1 = [[0,1,2,3],[2,0,1,3],[3,0,1,0],[2,1,0,3]]
+
+def sbox_lookup(bits, sbox):
+    row = (bits[0] << 1) + bits[3]
+    col = (bits[1] << 1) + bits[2]
+    val = sbox[row][col]
+    return [val >> 1 & 1, val & 1]
+
+# fK function
+def fk(bits, key):
+    EP = [3, 0, 1, 2, 1, 2, 3, 0]
+    P4 = [1, 3, 2, 0]
+    left, right = bits[:4], bits[4:]
+    temp = permute(right, EP)
+    temp = [a ^ b for a, b in zip(temp, key)]
+    s0 = sbox_lookup(temp[:4], S0)
+    s1 = sbox_lookup(temp[4:], S1)
+    temp = permute(s0 + s1, P4)
+    return [a ^ b for a, b in zip(left, temp)] + right
+
+# S-DES encryption of 8-bit block
+def sdes_encrypt(plain, K1, K2):
+    IP = [1, 5, 2, 0, 3, 7, 4, 6]
+    IP_inv = [3, 0, 2, 4, 6, 1, 7, 5]
+    bits = permute(plain, IP)
+    bits = fk(bits, K1)
+    bits = bits[4:] + bits[:4]
+    bits = fk(bits, K2)
+    return permute(bits, IP_inv)
+
+# XOR two bit lists
+def xor_bits(a, b):
+    return [x ^ y for x, y in zip(a, b)]
+
+# Convert binary string to bit list
+def str_to_bits(s):
+    return [int(b) for b in s]
+
+# Convert bit list to binary string
+def bits_to_str(bits):
+    return ''.join(str(b) for b in bits)
+
+# CTR mode encryption/decryption
+def ctr_mode(data_bits, key_bits, counter_start):
+    K1, K2 = generate_keys(key_bits)
+    result = []
+    for i in range(0, len(data_bits), 8):
+        block = data_bits[i:i+8]
+        counter = [(counter_start >> j) & 1 for j in reversed(range(8))]
+        keystream = sdes_encrypt(counter, K1, K2)
+        cipher_block = xor_bits(block, keystream)
+        result.extend(cipher_block)
+        counter_start += 1
+    return result
+
+# Test data
+plaintext_bits = str_to_bits('000000010000001000000100')
+key_bits = str_to_bits('0111111101')
+expected_cipher_bits = str_to_bits('001110000100111100110010')
+
+# Encrypt
+cipher_bits = ctr_mode(plaintext_bits, key_bits, 0)
+print("Encrypted:", bits_to_str(cipher_bits))
+assert cipher_bits == expected_cipher_bits, "Encryption output mismatch!"
+
+# Decrypt (same as encrypt in CTR mode)
+decrypted_bits = ctr_mode(cipher_bits, key_bits, 0)
+print("Decrypted:", bits_to_str(decrypted_bits))
+assert decrypted_bits == plaintext_bits, "Decryption failed!"

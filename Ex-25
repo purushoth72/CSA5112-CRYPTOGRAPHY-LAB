@@ -1,0 +1,43 @@
+import math
+
+# Step 1: Compute GCD
+def gcd(a, b):
+    while b:
+        a, b = b, a % b
+    return a
+
+# Step 2: Extended Euclidean Algorithm for modular inverse
+def extended_gcd(a, b):
+    if b == 0:
+        return a, 1, 0
+    gcd_val, x1, y1 = extended_gcd(b, a % b)
+    x = y1
+    y = x1 - (a // b) * y1
+    return gcd_val, x, y
+
+def mod_inverse(e, phi):
+    gcd_val, x, _ = extended_gcd(e, phi)
+    if gcd_val != 1:
+        raise Exception("No modular inverse exists")
+    return x % phi
+
+# Step 3: Recover private key if common factor is known
+def recover_private_key(n, e, known_plaintext):
+    factor = gcd(n, known_plaintext)
+    if factor == 1 or factor == n:
+        print("No useful common factor found.")
+        return None
+    p = factor
+    q = n // p
+    print(f"Recovered primes: p = {p}, q = {q}")
+    phi = (p - 1) * (q - 1)
+    d = mod_inverse(e, phi)
+    print(f"Recovered private key: d = {d}")
+    return d
+
+# Example usage
+n = 3599
+e = 31
+known_plaintext = 59  # Suppose someone tells us this block shares a factor with n
+
+recover_private_key(n, e, known_plaintext)

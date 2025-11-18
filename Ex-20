@@ -1,0 +1,119 @@
+
+import os
+import binascii
+
+BLOCK_SIZE = 16
+
+    pad_len = BLOCK_SIZE - (len(data) % BLOCK_SIZE)
+    return data + bytes([pad_len]) * pad_len
+
+def unpad(data):
+    n = data[-1]
+    return data[:-n]
+
+def xor_bytes(a, b):
+    return bytes(x ^ y for x, y in zip(a, b))
+
+def block_encrypt(plain_block, key_block):
+
+    return xor_bytes(plain_block, key_block)
+
+def block_decrypt(cipher_block, key_block):
+    # XOR is symmetric
+    return xor_bytes(cipher_block, key_block)
+
+def encrypt_ecb(plaintext, key_block):
+    plaintext = pad(plaintext)
+    out = b""
+    for i in range(0, len(plaintext), BLOCK_SIZE):
+        blk = plaintext[i:i+BLOCK_SIZE]
+        out += block_encrypt(blk, key_block)
+    return out
+
+def decrypt_ecb(ciphertext, key_block):
+    out = b""
+    for i in range(0, len(ciphertext), BLOCK_SIZE):
+        blk = ciphertext[i:i+BLOCK_SIZE]
+        out += block_decrypt(blk, key_block)
+    return unpad(out)
+
+def encrypt_cbc(plaintext, key_block, iv):
+    plaintext = pad(plaintext)
+    out = b""
+    prev = iv
+    for i in range(0, len(plaintext), BLOCK_SIZE):
+        blk = plaintext[i:i+BLOCK_SIZE]
+        to_encrypt = xor_bytes(blk, prev)
+        ct = block_encrypt(to_encrypt, key_block)
+        out += ct
+        prev = ct
+    return out
+
+def decrypt_cbc(ciphertext, key_block, iv):
+    out = b""
+    prev = iv
+    for i in range(0, len(ciphertext), BLOCK_SIZE):
+        ct = ciphertext[i:i+BLOCK_SIZE]
+        decrypted = block_decrypt(ct, key_block)
+        pt = xor_bytes(decrypted, prev)
+        out += pt
+        prev = ct
+    return unpad(out)
+
+
+def flip_bit_in_block(data, block_index, byte_index=0, bit_index=0):
+    # Flip a single bit in block `block_index`.
+    data = bytearray(data)
+    pos = block_index * BLOCK_SIZE + byte_index
+    data[pos] ^= (1 << bit_index)
+    return bytes(data)
+
+def show_hex_blocks(label, data):
+    print(label)
+    for i in range(0, len(data), BLOCK_SIZE):
+        print("  Block {:02d}: {}".format(i//BLOCK_SIZE + 1, binascii.hexlify(data[i:i+BLOCK_SIZE]).decode()))
+    print()
+
+def demo():
+    key = b"THIS_IS_16_BYTES"        # 16-byte key block for XOR
+    iv  = b"INIT_VECTOR_16B"        # 16-byte IV
+
+    plaintext = b"Block1-HELLO--Block2-WORLD--Block3-GOODBYE"
+    print("Plaintext:", plaintext)
+    print()
+
+    # --- ECB ---
+    c_ecb = encrypt_ecb(plaintext, key)
+    show_hex_blocks("ECB ciphertext (original):", c_ecb)
+
+    # flip a single bit in ciphertext block 1 (C1)
+    c_ecb_err = flip_bit_in_block(c_ecb, block_index=0, byte_index=0, bit_index=0)
+    show_hex_blocks("ECB ciphertext (with 1-bit error in C1):", c_ecb_err)
+
+    # decrypt both
+    p_ecb_ok = decrypt_ecb(c_ecb, key)
+    p_ecb_err = decrypt_ecb(c_ecb_err, key)
+    print("ECB decrypted (original):", p_ecb_ok)
+    print("ECB decrypted (after error in C1):", p_ecb_err)
+    print()
+    # You will see only block1 corrupted in p_ecb_err — other blocks intact.
+
+    # --- CBC ---
+    c_cbc = encrypt_cbc(plaintext, key, iv)
+    show_hex_blocks("CBC ciphertext (original):", c_cbc)
+
+    # flip a single bit in ciphertext block 1 (C1)
+    c_cbc_err = flip_bit_in_block(c_cbc, block_index=0, byte_index=0, bit_index=0)
+    show_hex_blocks("CBC ciphertext (with 1-bit error in C1):", c_cbc_err)
+
+    # decrypt both
+    p_cbc_ok = decrypt_cbc(c_cbc, key, iv)
+    p_cbc_err = decrypt_cbc(c_cbc_err, key, iv)
+    print("CBC decrypted (original):", p_cbc_ok)
+    print("CBC decrypted (after error in C1):", p_cbc_err)
+    print()
+    # In CBC, you'll see P1 is garbled (because D(C1) wrong),
+    # and P2 also affected (because XOR uses C1), but P3 onward is fine.
+
+if __name__ == "__main__":
+    demo()

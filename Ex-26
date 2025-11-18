@@ -1,0 +1,51 @@
+import math
+import random
+
+# Step 1: Factor n to get p and q
+def factor_n(n):
+    for i in range(2, int(math.sqrt(n)) + 1):
+        if n % i == 0:
+            return i, n // i
+    return None, None
+
+# Step 2: Compute φ(n)
+def compute_phi(p, q):
+    return (p - 1) * (q - 1)
+
+# Step 3: Extended Euclidean Algorithm
+def extended_gcd(a, b):
+    if b == 0:
+        return a, 1, 0
+    gcd, x1, y1 = extended_gcd(b, a % b)
+    x = y1
+    y = x1 - (a // b) * y1
+    return gcd, x, y
+
+def mod_inverse(e, phi):
+    gcd, x, _ = extended_gcd(e, phi)
+    if gcd != 1:
+        return None
+    return x % phi
+
+# Step 4: Generate new public/private key pair
+def regenerate_keys(n, old_d):
+    p, q = factor_n(n)
+    if not p or not q:
+        raise ValueError("Failed to factor n")
+    phi = compute_phi(p, q)
+    print(f"Using existing modulus n = {n}, with φ(n) = {phi}")
+
+    # Try random e' values until we find one that works
+    while True:
+        e_new = random.randint(2, phi - 1)
+        if math.gcd(e_new, phi) == 1:
+            d_new = mod_inverse(e_new, phi)
+            if d_new:
+                print(f"New public key e = {e_new}")
+                print(f"New private key d = {d_new}")
+                return e_new, d_new
+
+# Example: Bob's leaked private key
+n = 3599
+old_d = 337  # Leaked
+regenerate_keys(n, old_d)

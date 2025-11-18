@@ -1,0 +1,31 @@
+# Standard Diffie-Hellman Key Exchange
+
+def mod_exp(base, exp, mod):
+    return pow(base, exp, mod)
+
+def diffie_hellman_key_exchange():
+    # Public parameters
+    q = 353        # A large prime number
+    a = 3          # A primitive root modulo q
+
+    print(f"Public parameters: q = {q}, a = {a}")
+
+    # Alice's secret
+    xA = 97
+    yA = mod_exp(a, xA, q)  # Alice sends yA to Bob
+
+    # Bob's secret
+    xB = 233
+    yB = mod_exp(a, xB, q)  # Bob sends yB to Alice
+
+    # Shared secret key
+    kA = mod_exp(yB, xA, q)  # Alice computes
+    kB = mod_exp(yA, xB, q)  # Bob computes
+
+    print(f"Alice sends: {yA}")
+    print(f"Bob sends: {yB}")
+    print(f"Alice computes shared key: {kA}")
+    print(f"Bob computes shared key:   {kB}")
+    assert kA == kB, "Key mismatch!"
+
+diffie_hellman_key_exchange()

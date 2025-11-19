@@ -1,0 +1,48 @@
+import string
+from collections import Counter
+
+# English letter frequency (approximate)
+ENGLISH_FREQ = {
+    'E': 12.70, 'T': 9.06, 'A': 8.17, 'O': 7.51, 'I': 6.97,
+    'N': 6.75, 'S': 6.33, 'H': 6.09, 'R': 5.99, 'D': 4.25,
+    'L': 4.03, 'C': 2.78, 'U': 2.76, 'M': 2.41, 'W': 2.36,
+    'F': 2.23, 'G': 2.02, 'Y': 1.97, 'P': 1.93, 'B': 1.49,
+    'V': 0.98, 'K': 0.77, 'J': 0.15, 'X': 0.15, 'Q': 0.10, 'Z': 0.07
+}
+
+def caesar_decrypt(ciphertext, key):
+    decrypted = ''
+    for char in ciphertext.upper():
+        if char in string.ascii_uppercase:
+            decrypted += chr((ord(char) - ord('A') - key) % 26 + ord('A'))
+        else:
+            decrypted += char
+    return decrypted
+
+def score_text(text):
+    counter = Counter(c for c in text.upper() if c in string.ascii_uppercase)
+    total = sum(counter.values())
+    if total == 0:
+        return 0
+    freq = {char: (count / total) * 100 for char, count in counter.items()}
+    score = sum(abs(freq.get(char, 0) - ENGLISH_FREQ[char]) for char in ENGLISH_FREQ)
+    return score
+
+def frequency_attack(ciphertext, top_n=10):
+    candidates = []
+    for key in range(26):
+        plaintext = caesar_decrypt(ciphertext, key)
+        score = score_text(plaintext)
+        candidates.append((key, plaintext, score))
+    candidates.sort(key=lambda x: x[2])  # Lower score = closer to English
+    return candidates[:top_n]
+
+# User interface
+if __name__ == "__main__":
+    cipher_input = input("Enter the ciphertext: ")
+    top_n = int(input("How many top plaintexts to show? (e.g., 10): "))
+    results = frequency_attack(cipher_input, top_n)
+
+    print("\nTop possible plaintexts:")
+    for i, (key, text, score) in enumerate(results, 1):
+        print(f"{i}. Key={key:2d} | Score={score:.2f} | Plaintext: {text}")

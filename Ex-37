@@ -1,0 +1,53 @@
+import string
+from collections import Counter
+from itertools import permutations
+
+# English letter frequency (most to least common)
+ENGLISH_FREQ_ORDER = 'ETAOINSHRDLCUMWFGYPBVKJXQZ'
+
+def get_letter_frequency(text):
+    """Return letters sorted by frequency in the text."""
+    text = ''.join(filter(str.isalpha, text.upper()))
+    counter = Counter(text)
+    return [item[0] for item in counter.most_common()]
+
+def build_substitution_map(cipher_freq, guess_freq):
+    """Map cipher letters to guessed English letters."""
+    return dict(zip(cipher_freq, guess_freq))
+
+def decrypt_with_map(ciphertext, sub_map):
+    """Substitute letters in ciphertext using the given map."""
+    result = ''
+    for char in ciphertext:
+        if char.upper() in sub_map:
+            sub_char = sub_map[char.upper()]
+            result += sub_char.lower() if char.islower() else sub_char
+        else:
+            result += char
+    return result
+
+def generate_top_plaintexts(ciphertext, top_n=10):
+    cipher_freq_order = get_letter_frequency(ciphertext)
+    top_guesses = []
+
+    # Try permutations of the top 6 English letters for better guesses
+    for perm in permutations(ENGLISH_FREQ_ORDER[:6]):
+        guess_freq = list(perm) + list(ENGLISH_FREQ_ORDER[6:])
+        sub_map = build_substitution_map(cipher_freq_order, guess_freq)
+        plaintext = decrypt_with_map(ciphertext, sub_map)
+        top_guesses.append(plaintext)
+        if len(top_guesses) >= top_n:
+            break
+
+    return top_guesses
+
+# Example usage
+if __name__ == "__main__":
+    cipher_text = "ZOLSS PZ H ZLJYFZBSP SSLY"  # Encrypted "HELLO IS A SUBCIPHER TEST" with some substitution
+    top_n = 10
+
+    print(f"Ciphertext: {cipher_text}")
+    print(f"\nTop {top_n} Decryption Guesses:\n" + "-"*40)
+    guesses = generate_top_plaintexts(cipher_text, top_n)
+    for i, guess in enumerate(guesses, 1):
+        print(f"{i}. {guess}")

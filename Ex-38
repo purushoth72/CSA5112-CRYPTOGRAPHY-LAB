@@ -1,0 +1,66 @@
+import numpy as np
+
+# Helper functions
+def mod_inverse(matrix, modulus):
+    det = int(round(np.linalg.det(matrix)))
+    det_inv = pow(det, -1, modulus)
+    matrix_mod_inv = det_inv * np.round(det * np.linalg.inv(matrix)).astype(int) % modulus
+    return matrix_mod_inv
+
+def text_to_numbers(text):
+    return [ord(c.upper()) - ord('A') for c in text if c.isalpha()]
+
+def numbers_to_text(numbers):
+    return ''.join([chr(n % 26 + ord('A')) for n in numbers])
+
+def chunk_text(text, size):
+    nums = text_to_numbers(text)
+    while len(nums) % size != 0:
+        nums.append(0)  # Padding with 'A'
+    return [nums[i:i+size] for i in range(0, len(nums), size)]
+
+# Hill Cipher Encryption
+def hill_encrypt(plaintext, key_matrix):
+    chunks = chunk_text(plaintext, key_matrix.shape[0])
+    encrypted = []
+    for chunk in chunks:
+        vec = np.array(chunk).reshape(-1, 1)
+        enc = key_matrix.dot(vec) % 26
+        encrypted.extend(enc.flatten())
+    return numbers_to_text(encrypted)
+
+# Hill Cipher Decryption
+def hill_decrypt(ciphertext, key_matrix):
+    key_inv = mod_inverse(key_matrix, 26)
+    chunks = chunk_text(ciphertext, key_matrix.shape[0])
+    decrypted = []
+    for chunk in chunks:
+        vec = np.array(chunk).reshape(-1, 1)
+        dec = key_inv.dot(vec) % 26
+        decrypted.extend(dec.flatten())
+    return numbers_to_text(decrypted)
+
+# Known Plaintext Attack
+def recover_key_matrix(plaintext, ciphertext, block_size):
+    P = np.array(chunk_text(plaintext, block_size)).T
+    C = np.array(chunk_text(ciphertext, block_size)).T
+    P_inv = mod_inverse(P, 26)
+    K = (C.dot(P_inv)) % 26
+    return K
+
+# Example usage
+key = np.array([[3, 3], [2, 5]])
+plaintext = "HELP"
+ciphertext = hill_encrypt(plaintext, key)
+
+print("Original Key Matrix:\n", key)
+print("Plaintext:", plaintext)
+print("Ciphertext:", ciphertext)
+
+# Attacker knows plaintext and ciphertext
+recovered_key = recover_key_matrix(plaintext, ciphertext, 2)
+print("Recovered Key Matrix:\n", recovered_key)
+
+# Decrypt using recovered key
+decrypted = hill_decrypt(ciphertext, recovered_key)
+print("Decrypted Text:", decrypted)

@@ -1,0 +1,34 @@
+from Crypto.Cipher import AES
+from Crypto.Random import get_random_bytes
+import os
+
+# Pad message to AES block size (16 bytes)
+def pad(msg):
+    return msg + b'\x00' * (16 - len(msg))
+
+# CBC-MAC function for messages that are a multiple of 16 bytes
+def cbc_mac(key, message):
+    cipher = AES.new(key, AES.MODE_ECB)
+    assert len(message) % 16 == 0, "Message must be multiple of block size"
+    prev = b'\x00' * 16
+    for i in range(0, len(message), 16):
+        block = message[i:i+16]
+        prev = cipher.encrypt(bytes(x ^ y for x, y in zip(prev, block)))
+    return prev
+
+# Generate random key and one-block message X
+key = get_random_bytes(16)
+X = get_random_bytes(16)
+T = cbc_mac(key, X)
+
+# Adversary computes forged message: X || (X ⊕ T)
+X2 = bytes(x ^ t for x, t in zip(X, T))
+forged_message = X + X2
+T_forged = cbc_mac(key, forged_message)
+
+# Output results
+print("Original message X:       ", X.hex())
+print("CBC-MAC T = MAC(K, X):    ", T.hex())
+print("Forged message X || X⊕T:  ", forged_message.hex())
+print("CBC-MAC of forged message:", T_forged.hex())
+print("Forgery successful:", T_forged == T)

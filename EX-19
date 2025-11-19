@@ -1,0 +1,22 @@
+from Crypto.Cipher import DES3
+from Crypto.Random import get_random_bytes
+from Crypto.Util.Padding import pad
+
+# CBC encryption using 3DES
+def encrypt_cbc_3des(plaintext, key):
+    # Ensure key is 24 bytes for 3DES
+    if len(key) != 24:
+        raise ValueError("3DES key must be 24 bytes long")
+    
+    iv = get_random_bytes(8)  # 3DES block size is 8 bytes
+    cipher = DES3.new(key, DES3.MODE_CBC, iv)
+    padded_text = pad(plaintext.encode(), DES3.block_size)
+    ciphertext = cipher.encrypt(padded_text)
+    return iv + ciphertext  # Prepend IV for transmission
+
+# Example usage
+if __name__ == "__main__":
+    key = get_random_bytes(24)  # Secure 3DES key
+    plaintext = "Confidential message goes here"
+    encrypted = encrypt_cbc_3des(plaintext, key)
+    print("Encrypted (hex):", encrypted.hex())

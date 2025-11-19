@@ -1,0 +1,43 @@
+from collections import Counter
+
+# Ciphertext input
+ciphertext = """53‡‡†305))6*;4826)4‡.)4‡);806*;48†8¶60))85;;]8*;:‡*8†83
+(88)5*†;46(;88*96*?;8)*‡(;485);5*†2:*‡(;4956*2(5*—4)8¶8*
+;4069285);)6†8)4‡‡;1(‡9;48081;8:8‡1;48†85;4)485†528806*81 (‡9;48;(88;4(‡?34;48)4‡;161;:188;‡?;"""
+
+# Step 1: Frequency analysis
+def frequency_analysis(text):
+    filtered = [c for c in text if c.isalnum() or not c.isspace()]
+    freq = Counter(filtered)
+    return freq.most_common()
+
+# Step 2: Apply substitution map
+def apply_substitution(text, sub_map):
+    return ''.join(sub_map.get(c, c) for c in text)
+
+# Step 3: Initial guess based on frequency
+def guess_common_letters(freq_list):
+    print("Top 10 characters by frequency:")
+    for i, (char, count) in enumerate(freq_list[:10], 1):
+        print(f"{i}. '{char}' appears {count} times")
+
+# Step 4: Interactive substitution
+def interactive_decrypt(ciphertext, freq_list):
+    sub_map = {}
+    guess_common_letters(freq_list)
+
+    print("\nStart assigning substitutions (e.g., '‡=e'). Type 'done' when finished.")
+    while True:
+        entry = input("Substitute: ")
+        if entry.lower() == 'done':
+            break
+        if '=' in entry:
+            cipher_char, plain_char = entry.split('=')
+            sub_map[cipher_char.strip()] = plain_char.strip().lower()
+
+    print("\nDecrypted message (partial):")
+    print(apply_substitution(ciphertext, sub_map))
+
+# Run the analysis
+freq_list = frequency_analysis(ciphertext)
+interactive_decrypt(ciphertext, freq_list)

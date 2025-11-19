@@ -1,0 +1,46 @@
+import random
+import string
+
+def generate_key(length):
+    """Generate a random key stream of integers between 0 and 26."""
+    return [random.randint(0, 26) for _ in range(length)]
+
+def encrypt(plaintext, key):
+    """Encrypt plaintext using one-time pad Vigenère cipher."""
+    plaintext = plaintext.upper()
+    ciphertext = ''
+    for i, char in enumerate(plaintext):
+        if char in string.ascii_uppercase:
+            shift = key[i]
+            encrypted_char = chr(((ord(char) - ord('A') + shift) % 26) + ord('A'))
+            ciphertext += encrypted_char
+        else:
+            ciphertext += char  # Non-alphabetic characters are unchanged
+    return ciphertext
+
+def decrypt(ciphertext, key):
+    """Decrypt ciphertext using one-time pad Vigenère cipher."""
+    ciphertext = ciphertext.upper()
+    plaintext = ''
+    for i, char in enumerate(ciphertext):
+        if char in string.ascii_uppercase:
+            shift = key[i]
+            decrypted_char = chr(((ord(char) - ord('A') - shift) % 26) + ord('A'))
+            plaintext += decrypted_char
+        else:
+            plaintext += char
+    return plaintext
+
+# Example usage
+if __name__ == "__main__":
+    message = "HELLOVIGENERE"
+    key = generate_key(len(message))
+
+    print(f"Original Message: {message}")
+    print(f"Key Stream: {key}")
+
+    encrypted = encrypt(message, key)
+    print(f"Encrypted Message: {encrypted}")
+
+    decrypted = decrypt(encrypted, key)
+    print(f"Decrypted Message: {decrypted}")

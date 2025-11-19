@@ -1,0 +1,55 @@
+from math import gcd
+
+# Check if 'a' is coprime with 26
+def is_valid_key(a):
+    return gcd(a, 26) == 1
+
+# Modular inverse of 'a' modulo 26
+def mod_inverse(a, m=26):
+    for i in range(1, m):
+        if (a * i) % m == 1:
+            return i
+    raise ValueError(f"No modular inverse for a = {a} under mod {m}")
+
+# Encryption: C = (a * p + b) % 26
+def affine_encrypt(plaintext, a, b):
+    if not is_valid_key(a):
+        raise ValueError(f"Invalid key 'a' = {a}. It must be coprime with 26.")
+    
+    ciphertext = ''
+    for char in plaintext.upper():
+        if char.isalpha():
+            p = ord(char) - ord('A')
+            c = (a * p + b) % 26
+            ciphertext += chr(c + ord('A'))
+        else:
+            ciphertext += char
+    return ciphertext
+
+# Decryption: P = a_inv * (c - b) % 26
+def affine_decrypt(ciphertext, a, b):
+    if not is_valid_key(a):
+        raise ValueError(f"Invalid key 'a' = {a}. It must be coprime with 26.")
+    
+    a_inv = mod_inverse(a)
+    plaintext = ''
+    for char in ciphertext.upper():
+        if char.isalpha():
+            c = ord(char) - ord('A')
+            p = (a_inv * (c - b)) % 26
+            plaintext += chr(p + ord('A'))
+        else:
+            plaintext += char
+    return plaintext
+
+# Example usage
+if __name__ == "__main__":
+    a = 5  # Must be coprime with 26
+    b = 8
+    message = "AFFINECIPHER"
+
+    print(f"Original Message: {message}")
+    encrypted = affine_encrypt(message, a, b)
+    print(f"Encrypted Message: {encrypted}")
+    decrypted = affine_decrypt(encrypted, a, b)
+    print(f"Decrypted Message: {decrypted}")

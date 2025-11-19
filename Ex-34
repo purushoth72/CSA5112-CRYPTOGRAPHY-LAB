@@ -1,0 +1,52 @@
+from Crypto.Cipher import DES
+from Crypto.Random import get_random_bytes
+
+BLOCK_SIZE = 8  # DES block size in bytes (64 bits)
+
+def custom_pad(data):
+    pad_len = BLOCK_SIZE - (len(data) % BLOCK_SIZE)
+    if pad_len == 0:
+        pad_len = BLOCK_SIZE
+    return data + b'\x80' + b'\x00' * (pad_len - 1)
+
+def custom_unpad(data):
+    if b'\x80' not in data:
+        raise ValueError("Invalid padding")
+    return data[:data.rfind(b'\x80')]
+
+def encrypt_des(mode, plaintext, key, iv=None):
+    plaintext = custom_pad(plaintext.encode())
+    if mode == 'ECB':
+        cipher = DES.new(key, DES.MODE_ECB)
+    elif mode == 'CBC':
+        cipher = DES.new(key, DES.MODE_CBC, iv)
+    elif mode == 'CFB':
+        cipher = DES.new(key, DES.MODE_CFB, iv)
+    else:
+        raise ValueError("Unsupported mode")
+    return cipher.encrypt(plaintext)
+
+def decrypt_des(mode, ciphertext, key, iv=None):
+    if mode == 'ECB':
+        cipher = DES.new(key, DES.MODE_ECB)
+    elif mode == 'CBC':
+        cipher = DES.new(key, DES.MODE_CBC, iv)
+    elif mode == 'CFB':
+        cipher = DES.new(key, DES.MODE_CFB, iv)
+    else:
+        raise ValueError("Unsupported mode")
+    decrypted = cipher.decrypt(ciphertext)
+    return custom_unpad(decrypted).decode()
+
+# Example usage
+if __name__ == "__main__":
+    key = get_random_bytes(8)
+    iv = get_random_bytes(8)
+    message = "HelloCrypto"
+
+    for mode in ['ECB', 'CBC', 'CFB']:
+        print(f"\n--- {mode} MODE ---")
+        encrypted = encrypt_des(mode, message, key, iv)
+        print(f"Encrypted (hex): {encrypted.hex()}")
+        decrypted = decrypt_des(mode, encrypted, key, iv)
+        print(f"Decrypted: {decrypted}")
